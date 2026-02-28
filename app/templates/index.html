@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>LUNAR // SCANNER v1.7</title>
+    <style>
+        body { background-color: #0b0d17; color: #d0d6e0; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 10px; height: 100vh; box-sizing: border-box;}
+        h1 { color: #00d4ff; text-shadow: 0 0 10px #00d4ff; margin: 10px 0; }
+
+        .container { width: 98%; max-width: 1800px; height: calc(100vh - 80px); background: #15192b; padding: 15px; border: 1px solid #2a3b55; display: flex; flex-direction: column; box-sizing: border-box;}
+
+        .controls { margin-bottom: 15px; text-align: center; display: flex; justify-content: center; gap: 20px; align-items: center; flex-wrap: wrap; flex-shrink: 0;}
+        .btn-upload { background: #00d4ff; color: #000; padding: 8px 16px; border: none; cursor: pointer; font-weight: bold; transition: 0.2s;}
+        .btn-upload:hover { background: #fff; }
+
+        .results-area { display: flex; gap: 20px; flex: 1; min-height: 0; }
+
+        .image-container-wrapper {
+            flex: 2; border: 1px solid #444; background: #000;
+            overflow-y: auto; overflow-x: hidden;
+            display: flex; flex-direction: column; align-items: center;
+        }
+
+        .image-wrapper { position: relative; width: 100%; height: auto; }
+        .image-wrapper img { width: 100%; height: auto; display: block; }
+
+        .dot { position: absolute; width: 6px; height: 6px; background-color: red; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 5px red; cursor: pointer;}
+        .dot-label { position: absolute; color: #00d4ff; font-size: 12px; font-weight: bold; transform: translate(8px, -15px); text-shadow: 1px 1px 2px black; pointer-events: none; white-space: nowrap;}
+
+        .data-box { flex: 1; max-width: 500px; background: #1e2336; padding: 15px; display: flex; flex-direction: column; min-height: 0; border: 1px solid #2a3b55; overflow-y: auto;}
+
+        .panel { background: #2a3b55; padding: 12px; margin-bottom: 15px; border: 1px solid #444; }
+        .panel-title { color: #00d4ff; font-weight: bold; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px; margin-top: 0; font-size: 14px;}
+        .panel label { display: block; margin-bottom: 4px; color: #ccc; font-size: 12px;}
+
+        input[type=range] { width: 100%; cursor: pointer; }
+
+        .scroll-table { overflow-y: auto; flex: 1; border: 1px solid #333; margin-top: 10px;}
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #333; font-size: 13px; }
+        th { color: #00d4ff; position: sticky; top: 0; background: #1e2336; }
+        tr:hover { background: #2a3b55; }
+    </style>
+</head>
+<body>
+    <h1>LUNAR // SCANNER v1.7</h1>
+    <div class="container">
+        <div class="controls">
+            <input type="file" id="fileInput" accept=".tif,.tiff" style="color: #00d4ff;">
+            <button class="btn-upload" onclick="uploadFile()">START SCAN</button>
+            <span id="status">System Ready.</span>
+        </div>
+
+        <div class="results-area">
+            <div class="image-container-wrapper">
+                <div class="image-wrapper" id="imageWrapper">
+                    <img id="resultImage" src="" style="display:none;" onload="applyFilters()">
+                    <div id="overlayContainer" style="position: absolute; top:0; left:0; width:100%; height:100%;"></div>
+                </div>
+            </div>
+
+            <div class="data-box">
+                <div class="panel">
+                    <h4 class="panel-title">Detection Filters</h4>
+                    <label>Sensitivity (Confidence): <span id="confValue" style="color:white;">0.25</span></label>
+                    <input type="range" id="confSlider" min="0.10" max="0.95" step="0.05" value="0.25" oninput="applyFilters()">
+                    <button class="btn-upload" style="width: 100%; margin-top: 15px; font-size: 12px;" onclick="downloadAnnotatedImage()">SAVE IMAGE WITH MARKERS</button>
+                </div>
+
+                <h3 style="margin: 5px 0 5px 0; color: #fff;">Objects: <span id="objCount">0</span></h3>
+
+                <div class="scroll-table">
+                    <table id="dataTable">
+                        <thead>
+                            <tr>
+                                <th>Class</th>
+                                <th>Conf</th>
+                                <th>Pixel Coords (X, Y)</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allDetections = [];
+        let originalImgWidth = 0;
+        let originalImgHeight = 0;
+        let currentFilteredDetections = [];
+
+        async function uploadFile() {
+            const file = document.getElementById('fileInput').files[0];
+            if (!file) return alert("Select TIF file!");
+
+            const formData = new FormData();
+            formData.append('file', file);
+            document.getElementById('status').innerText = 'Scanning...';
+            document.getElementById('status').style.color = '#fff';
+
+            try {
+                const resp = await fetch('/upload', { method: 'POST', body: formData });
+                const data = await resp.json();
+
+                if (data.error) {
+                    document.getElementById('status').innerText = 'Error: ' + data.error;
+                    document.getElementById('status').style.color = 'red';
+                } else {
+                    document.getElementById('status').innerText = 'Scan Complete.';
+                    document.getElementById('status').style.color = '#00d4ff';
+
+                    allDetections = data.detections;
+                    originalImgWidth = data.orig_width;
+                    originalImgHeight = data.orig_height;
+
+                    const img = document.getElementById('resultImage');
+                    img.src = data.image_url + '?t=' + Date.now();
+                    img.style.display = 'block';
+                }
+            } catch (e) { alert("Server error: " + e); }
+        }
+
+        function applyFilters() {
+            if (allDetections.length === 0) return;
+
+            const minConf = parseFloat(document.getElementById('confSlider').value);
+            document.getElementById('confValue').innerText = minConf.toFixed(2);
+
+            currentFilteredDetections = allDetections.filter(d => d.conf >= minConf);
+
+            renderTable(currentFilteredDetections);
+            drawDynamicDots(currentFilteredDetections);
+            document.getElementById('objCount').innerText = currentFilteredDetections.length;
+        }
+
+        function drawDynamicDots(data) {
+            const overlay = document.getElementById('overlayContainer');
+            overlay.innerHTML = '';
+
+            if (originalImgWidth === 0 || originalImgHeight === 0) return;
+
+            data.forEach(det => {
+                const xPercent = (det.x_px / originalImgWidth) * 100;
+                const yPercent = (det.y_px / originalImgHeight) * 100;
+
+                const dot = document.createElement('div');
+                dot.className = 'dot';
+                dot.style.left = xPercent + '%';
+                dot.style.top = yPercent + '%';
+
+                const label = document.createElement('div');
+                label.className = 'dot-label';
+                label.style.left = xPercent + '%';
+                label.style.top = yPercent + '%';
+                label.innerText = `${det.class} ${det.conf}`;
+
+                overlay.appendChild(dot);
+                overlay.appendChild(label);
+            });
+        }
+
+        function renderTable(data) {
+            const tbody = document.querySelector('#dataTable tbody');
+            tbody.innerHTML = '';
+
+            data.forEach(det => {
+                const coordsString = `${det.x_px}, ${det.y_px}`;
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${det.class}</td>
+                    <td>${det.conf}</td>
+                    <td style="font-weight: bold; color: #00d4ff;">${coordsString}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function downloadAnnotatedImage() {
+            const img = document.getElementById('resultImage');
+            if (!img.src || img.style.display === 'none') {
+                alert("Please scan an image first.");
+                return;
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            const ctx = canvas.getContext('2d');
+
+            ctx.drawImage(img, 0, 0);
+            ctx.font = 'bold 16px Courier New';
+
+            currentFilteredDetections.forEach(det => {
+                const x = (det.x_px / originalImgWidth) * canvas.width;
+                const y = (det.y_px / originalImgHeight) * canvas.height;
+
+                ctx.beginPath();
+                ctx.arc(x, y, 6, 0, 2 * Math.PI);
+                ctx.fillStyle = 'red';
+                ctx.fill();
+
+                ctx.shadowColor = "black";
+                ctx.shadowBlur = 4;
+                ctx.shadowOffsetX = 2;
+                ctx.shadowOffsetY = 2;
+
+                ctx.fillStyle = '#00d4ff';
+                ctx.fillText(`${det.class} ${det.conf}`, x + 10, y - 10);
+                ctx.shadowColor = "transparent";
+            });
+
+            const link = document.createElement('a');
+            const confStr = document.getElementById('confSlider').value.replace('.', '');
+            link.download = `lunar_scan_conf_${confStr}.jpg`;
+            link.href = canvas.toDataURL('image/jpeg', 0.9);
+            link.click();
+        }
+    </script>
+</body>
+</html>

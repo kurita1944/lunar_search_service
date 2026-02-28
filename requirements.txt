@@ -1,0 +1,8 @@
+flask==3.0.0
+ultralytics==8.1.0
+opencv-python-headless
+numpy
+rasterio
+shapely
+psycopg2-binary  # Для PostgreSQL
+Pillow
