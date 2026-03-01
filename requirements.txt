@@ -6,3 +6,4 @@ rasterio
 shapely
 psycopg2-binary  # Для PostgreSQL
 Pillow
+Flask-SQLAlchemy==3.1.1

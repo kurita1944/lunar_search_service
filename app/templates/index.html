@@ -2,53 +2,257 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>LUNAR // SCANNER v1.7</title>
+    <title>Lunar Search Service - Анализ LRO NAC</title>
+
+    <script>
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
+
     <style>
-        body { background-color: #0b0d17; color: #d0d6e0; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 10px; height: 100vh; box-sizing: border-box;}
-        h1 { color: #00d4ff; text-shadow: 0 0 10px #00d4ff; margin: 10px 0; }
+        /* ПОДКЛЮЧАЕМ ШРИФТ NASA */
+        @font-face {
+            font-family: 'Nasalization';
+            src: url('/static/fonts/nasalization-rg.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
 
-        .container { width: 98%; max-width: 1800px; height: calc(100vh - 80px); background: #15192b; padding: 15px; border: 1px solid #2a3b55; display: flex; flex-direction: column; box-sizing: border-box;}
+        /* ТЕМНАЯ ТЕМА (ПО УМОЛЧАНИЮ) */
+        :root {
+            --bg-main: #0f111a;
+            --bg-panel: #1a1d2d;
+            --bg-panel-hover: #23273b;
+            --accent: #3b82f6;
+            --accent-hover: #60a5fa;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --border: #334155;
+            --danger: #ef4444;
+            --table-header-bg: #1a1d2d;
+        }
 
-        .controls { margin-bottom: 15px; text-align: center; display: flex; justify-content: center; gap: 20px; align-items: center; flex-wrap: wrap; flex-shrink: 0;}
-        .btn-upload { background: #00d4ff; color: #000; padding: 8px 16px; border: none; cursor: pointer; font-weight: bold; transition: 0.2s;}
-        .btn-upload:hover { background: #fff; }
+        /* СВЕТЛАЯ ТЕМА */
+        [data-theme="light"] {
+            --bg-main: #f8f9fa;
+            --bg-panel: #ffffff;
+            --bg-panel-hover: #f1f3f5;
+            --accent: #007bff;
+            --accent-hover: #0056b3;
+            --text-main: #333333;
+            --text-muted: #6c757d;
+            --border: #dee2e6;
+            --danger: #ef4444;
+            --table-header-bg: #e9ecef;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            font-family: 'Nasalization', 'Segoe UI', system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 20px;
+            height: 100vh;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .header {
+            width: 100%;
+            max-width: 1600px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        h1 { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: 1px; }
+        h1 span { color: var(--accent); }
+
+        .container {
+            width: 100%;
+            max-width: 1600px;
+            height: calc(100vh - 100px);
+            background: var(--bg-main);
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            gap: 20px;
+            transition: background-color 0.3s ease;
+        }
+
+        .controls {
+            background: var(--bg-panel);
+            padding: 15px 25px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+
+        .controls-left, .controls-right { display: flex; align-items: center; gap: 15px; }
+
+        input[type="file"]::file-selector-button {
+            background: var(--bg-panel-hover);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: 0.2s;
+            font-family: 'Nasalization', sans-serif;
+        }
+
+        input[type="file"]::file-selector-button:hover { background: var(--border); }
+
+        .btn {
+            background: var(--accent);
+            color: #fff;
+            padding: 9px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: 0.2s;
+            text-decoration: none;
+            display: inline-block;
+            font-family: 'Nasalization', sans-serif;
+        }
+
+        .btn:hover { background: var(--accent-hover); }
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
+        .btn-outline:hover { background: var(--bg-panel-hover); border-color: var(--accent); }
+
+        /* Стили для кнопки переключения темы */
+        .theme-toggle {
+            background: transparent;
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            padding: 9px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Nasalization', sans-serif;
+            font-size: 14px;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .theme-toggle:hover {
+            background: var(--bg-panel-hover);
+            border-color: var(--accent);
+        }
+
+        #status { font-weight: 500; font-size: 14px; color: var(--text-muted); }
 
         .results-area { display: flex; gap: 20px; flex: 1; min-height: 0; }
 
         .image-container-wrapper {
-            flex: 2; border: 1px solid #444; background: #000;
-            overflow-y: auto; overflow-x: hidden;
-            display: flex; flex-direction: column; align-items: center;
+            flex: 2.5;
+            background: var(--bg-panel);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            overflow-y: auto;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
 
         .image-wrapper { position: relative; width: 100%; height: auto; }
-        .image-wrapper img { width: 100%; height: auto; display: block; }
+        .image-wrapper img { display: block; width: 100%; height: auto; }
 
-        .dot { position: absolute; width: 6px; height: 6px; background-color: red; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 5px red; cursor: pointer;}
-        .dot-label { position: absolute; color: #00d4ff; font-size: 12px; font-weight: bold; transform: translate(8px, -15px); text-shadow: 1px 1px 2px black; pointer-events: none; white-space: nowrap;}
+        .bounding-box {
+            position: absolute;
+            border: 2px solid var(--danger);
+            background-color: rgba(239, 68, 68, 0.1);
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            box-shadow: 0 0 8px rgba(0,0,0,0.5);
+        }
 
-        .data-box { flex: 1; max-width: 500px; background: #1e2336; padding: 15px; display: flex; flex-direction: column; min-height: 0; border: 1px solid #2a3b55; overflow-y: auto;}
+        .box-label {
+            position: absolute;
+            background: var(--danger);
+            color: #fff;
+            font-size: 11px;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 2px;
+            transform: translate(-50%, -100%);
+            margin-top: -18px;
+            pointer-events: none;
+            white-space: nowrap;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            font-family: 'Nasalization', sans-serif;
+        }
 
-        .panel { background: #2a3b55; padding: 12px; margin-bottom: 15px; border: 1px solid #444; }
-        .panel-title { color: #00d4ff; font-weight: bold; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px; margin-top: 0; font-size: 14px;}
-        .panel label { display: block; margin-bottom: 4px; color: #ccc; font-size: 12px;}
+        .data-box {
+            flex: 1;
+            min-width: 350px;
+            background: var(--bg-panel);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
 
-        input[type=range] { width: 100%; cursor: pointer; }
+        .panel { padding: 20px; border-bottom: 1px solid var(--border); transition: border-color 0.3s ease;}
+        .panel-title { color: var(--text-main); font-weight: 600; margin: 0 0 15px 0; font-size: 16px;}
+        .panel label { display: flex; justify-content: space-between; margin-bottom: 10px; color: var(--text-muted); font-size: 14px;}
 
-        .scroll-table { overflow-y: auto; flex: 1; border: 1px solid #333; margin-top: 10px;}
+        input[type=range] { width: 100%; cursor: pointer; accent-color: var(--accent); }
+
+        .table-header { padding: 15px 20px; background: var(--bg-panel-hover); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; transition: 0.3s ease;}
+        .table-header h3 { margin: 0; font-size: 15px; font-weight: 600;}
+        .badge-count { background: var(--accent); color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; }
+
+        .scroll-table { overflow-y: auto; flex: 1; }
         table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #333; font-size: 13px; }
-        th { color: #00d4ff; position: sticky; top: 0; background: #1e2336; }
-        tr:hover { background: #2a3b55; }
+        th, td { padding: 12px 20px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; transition: border-color 0.3s ease;}
+        th { color: var(--text-muted); font-weight: 600; position: sticky; top: 0; background: var(--table-header-bg); transition: background-color 0.3s ease;}
+        tr:hover { background: var(--bg-panel-hover); }
+
+        .class-badge { background: var(--border); padding: 3px 8px; border-radius: 4px; font-weight: 500; font-size: 12px;}
     </style>
 </head>
 <body>
-    <h1>LUNAR // SCANNER v1.7</h1>
+    <div class="header">
+        <h1>Lunar Search <span>Service</span></h1>
+        <div class="header-actions">
+            <button class="theme-toggle" onclick="toggleTheme()" id="themeToggleBtn">☀️ Светлая тема</button>
+            <a href="/history" class="btn btn-outline">История анализов</a>
+        </div>
+    </div>
+
     <div class="container">
         <div class="controls">
-            <input type="file" id="fileInput" accept=".tif,.tiff" style="color: #00d4ff;">
-            <button class="btn-upload" onclick="uploadFile()">START SCAN</button>
-            <span id="status">System Ready.</span>
+            <div class="controls-left">
+                <input type="file" id="fileInput" accept=".tif,.tiff">
+                <button class="btn" onclick="uploadFile()">Запустить сканирование</button>
+            </div>
+            <div class="controls-right">
+                <span id="status">Система готова. Загрузите снимок LRO NAC.</span>
+            </div>
         </div>
 
         <div class="results-area">
@@ -61,24 +265,29 @@
 
             <div class="data-box">
                 <div class="panel">
-                    <h4 class="panel-title">Detection Filters</h4>
-                    <label>Sensitivity (Confidence): <span id="confValue" style="color:white;">0.25</span></label>
+                    <h4 class="panel-title">Параметры фильтрации</h4>
+                    <label>Порог уверенности (Confidence): <span id="confValue" style="color:var(--accent); font-weight:bold;">0.25</span></label>
                     <input type="range" id="confSlider" min="0.10" max="0.95" step="0.05" value="0.25" oninput="applyFilters()">
-                    <button class="btn-upload" style="width: 100%; margin-top: 15px; font-size: 12px;" onclick="downloadAnnotatedImage()">SAVE IMAGE WITH MARKERS</button>
+                    <button class="btn btn-outline" style="width: 100%; margin-top: 20px;" onclick="downloadAnnotatedImage()">Скачать снимок с разметкой</button>
                 </div>
 
-                <h3 style="margin: 5px 0 5px 0; color: #fff;">Objects: <span id="objCount">0</span></h3>
+                <div class="table-header">
+                    <h3>Обнаруженные объекты</h3>
+                    <span class="badge-count" id="objCount">0</span>
+                </div>
 
                 <div class="scroll-table">
                     <table id="dataTable">
                         <thead>
                             <tr>
-                                <th>Class</th>
+                                <th>Класс объекта</th>
                                 <th>Conf</th>
-                                <th>Pixel Coords (X, Y)</th>
+                                <th>Координаты (X, Y)</th>
                             </tr>
                         </thead>
-                        <tbody></tbody>
+                        <tbody>
+                            <tr><td colspan="3" style="text-align: center; color: var(--text-muted);">Нет данных для отображения</td></tr>
+                        </tbody>
                     </table>
                 </div>
             </div>
@@ -86,6 +295,28 @@
     </div>
 
     <script>
+        // --- ЛОГИКА ТЕМЫ ---
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeButton(newTheme);
+        }
+
+        function updateThemeButton(theme) {
+            const btn = document.getElementById('themeToggleBtn');
+            if (btn) {
+                btn.innerHTML = theme === 'dark' ? '☀️ Светлая тема' : '🌙 Темная тема';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+            updateThemeButton(currentTheme);
+        });
+        // --------------------
+
         let allDetections = [];
         let originalImgWidth = 0;
         let originalImgHeight = 0;
@@ -93,23 +324,23 @@
 
         async function uploadFile() {
             const file = document.getElementById('fileInput').files[0];
-            if (!file) return alert("Select TIF file!");
+            if (!file) return alert("Пожалуйста, выберите файл .TIF");
 
             const formData = new FormData();
             formData.append('file', file);
-            document.getElementById('status').innerText = 'Scanning...';
-            document.getElementById('status').style.color = '#fff';
+            document.getElementById('status').innerText = 'Идет сканирование нейросетью...';
+            document.getElementById('status').style.color = 'var(--text-main)';
 
             try {
                 const resp = await fetch('/upload', { method: 'POST', body: formData });
                 const data = await resp.json();
 
                 if (data.error) {
-                    document.getElementById('status').innerText = 'Error: ' + data.error;
-                    document.getElementById('status').style.color = 'red';
+                    document.getElementById('status').innerText = 'Ошибка: ' + data.error;
+                    document.getElementById('status').style.color = 'var(--danger)';
                 } else {
-                    document.getElementById('status').innerText = 'Scan Complete.';
-                    document.getElementById('status').style.color = '#00d4ff';
+                    document.getElementById('status').innerText = 'Анализ успешно завершен.';
+                    document.getElementById('status').style.color = '#10b981';
 
                     allDetections = data.detections;
                     originalImgWidth = data.orig_width;
@@ -119,7 +350,7 @@
                     img.src = data.image_url + '?t=' + Date.now();
                     img.style.display = 'block';
                 }
-            } catch (e) { alert("Server error: " + e); }
+            } catch (e) { alert("Ошибка соединения с сервером: " + e); }
         }
 
         function applyFilters() {
@@ -131,32 +362,36 @@
             currentFilteredDetections = allDetections.filter(d => d.conf >= minConf);
 
             renderTable(currentFilteredDetections);
-            drawDynamicDots(currentFilteredDetections);
+            drawBoundingBoxes(currentFilteredDetections);
             document.getElementById('objCount').innerText = currentFilteredDetections.length;
         }
 
-        function drawDynamicDots(data) {
+        function drawBoundingBoxes(data) {
             const overlay = document.getElementById('overlayContainer');
             overlay.innerHTML = '';
 
             if (originalImgWidth === 0 || originalImgHeight === 0) return;
 
+            const boxSize = 40;
+
             data.forEach(det => {
                 const xPercent = (det.x_px / originalImgWidth) * 100;
                 const yPercent = (det.y_px / originalImgHeight) * 100;
 
-                const dot = document.createElement('div');
-                dot.className = 'dot';
-                dot.style.left = xPercent + '%';
-                dot.style.top = yPercent + '%';
+                const box = document.createElement('div');
+                box.className = 'bounding-box';
+                box.style.left = xPercent + '%';
+                box.style.top = yPercent + '%';
+                box.style.width = boxSize + 'px';
+                box.style.height = boxSize + 'px';
 
                 const label = document.createElement('div');
-                label.className = 'dot-label';
+                label.className = 'box-label';
                 label.style.left = xPercent + '%';
                 label.style.top = yPercent + '%';
-                label.innerText = `${det.class} ${det.conf}`;
+                label.innerText = `${det.class} ${(det.conf * 100).toFixed(0)}%`;
 
-                overlay.appendChild(dot);
+                overlay.appendChild(box);
                 overlay.appendChild(label);
             });
         }
@@ -165,13 +400,18 @@
             const tbody = document.querySelector('#dataTable tbody');
             tbody.innerHTML = '';
 
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">Объекты не найдены</td></tr>';
+                return;
+            }
+
             data.forEach(det => {
                 const coordsString = `${det.x_px}, ${det.y_px}`;
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${det.class}</td>
+                    <td><span class="class-badge">${det.class}</span></td>
                     <td>${det.conf}</td>
-                    <td style="font-weight: bold; color: #00d4ff;">${coordsString}</td>
+                    <td style="font-family: 'Courier New', monospace; color: var(--accent);">${coordsString}</td>
                 `;
                 tbody.appendChild(row);
             });
@@ -180,7 +420,7 @@
         function downloadAnnotatedImage() {
             const img = document.getElementById('resultImage');
             if (!img.src || img.style.display === 'none') {
-                alert("Please scan an image first.");
+                alert("Сначала необходимо просканировать снимок.");
                 return;
             }
 
@@ -190,30 +430,34 @@
             const ctx = canvas.getContext('2d');
 
             ctx.drawImage(img, 0, 0);
-            ctx.font = 'bold 16px Courier New';
+
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#ef4444';
+            ctx.font = 'bold 16px Arial';
+
+            const rectSize = 40;
 
             currentFilteredDetections.forEach(det => {
                 const x = (det.x_px / originalImgWidth) * canvas.width;
                 const y = (det.y_px / originalImgHeight) * canvas.height;
 
                 ctx.beginPath();
-                ctx.arc(x, y, 6, 0, 2 * Math.PI);
-                ctx.fillStyle = 'red';
-                ctx.fill();
+                ctx.rect(x - rectSize/2, y - rectSize/2, rectSize, rectSize);
+                ctx.stroke();
 
-                ctx.shadowColor = "black";
-                ctx.shadowBlur = 4;
-                ctx.shadowOffsetX = 2;
-                ctx.shadowOffsetY = 2;
+                const text = `${det.class} ${det.conf}`;
+                const textWidth = ctx.measureText(text).width;
 
-                ctx.fillStyle = '#00d4ff';
-                ctx.fillText(`${det.class} ${det.conf}`, x + 10, y - 10);
-                ctx.shadowColor = "transparent";
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(x - rectSize/2, y - rectSize/2 - 20, textWidth + 10, 20);
+
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(text, x - rectSize/2 + 5, y - rectSize/2 - 5);
             });
 
             const link = document.createElement('a');
             const confStr = document.getElementById('confSlider').value.replace('.', '');
-            link.download = `lunar_scan_conf_${confStr}.jpg`;
+            link.download = `lunar_scan_result_conf${confStr}.jpg`;
             link.href = canvas.toDataURL('image/jpeg', 0.9);
             link.click();
         }

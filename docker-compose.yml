@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app  # Проброс папки для удобства разработки
+      - ./data/weights:/app/data/weights # Доступ к весам
+    environment:
+      # Строка подключения к PostgreSQL (пользователь lunar_user, пароль lunar_pass)
+      - DATABASE_URL=postgresql://lunar_user:lunar_pass@db:5432/lunar_db
+    depends_on:
+      - db
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: lunar_user
+      POSTGRES_PASSWORD: lunar_pass
+      POSTGRES_DB: lunar_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

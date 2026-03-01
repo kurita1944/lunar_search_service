@@ -4,6 +4,9 @@ from flask import render_template, request, jsonify, current_app, send_from_dire
 from werkzeug.utils import secure_filename
 from core.scanner import LunarScanner
 
+# ДОБАВЛЕНО: Импортируем базу данных и наши модели ORM
+from app.models import db, Image, ObjectClass, Detection
+
 # Глобальная переменная для сканера
 scanner = None
 
@@ -84,11 +87,51 @@ def register_routes(app):
                     else:
                         img_vis = cv2.cvtColor(img_vis, cv2.COLOR_RGB2BGR)
 
-                    # БОЛЬШЕ НЕ РИСУЕМ КРЕСТИКИ И ТЕКСТ В PYTHON
                     # Сохраняем чистую картинку
                     result_filename = f"res_{filename}.jpg"
                     result_path = os.path.join(processed_folder, result_filename)
                     cv2.imwrite(result_path, img_vis)
+
+                # === ДОБАВЛЕНИЕ В БАЗУ ДАННЫХ ===
+
+                # Шаг 1: Записываем информацию о загруженном снимке
+                new_image = Image(
+                    filename=filename,
+                    file_path=filepath,
+                    resolution=None  # Можно позже добавить чтение разрешения из метаданных (м/пикс)
+                )
+                db.session.add(new_image)
+                db.session.commit()  # Коммитим, чтобы база присвоила снимку image_id
+
+                # Шаг 2: Проходимся по всем найденным объектам и сохраняем их
+                for det in detections:
+                    class_name = det.get('class')
+
+                    # Проверяем, существует ли такой класс объектов в базе (АМС, Кратер и т.д.)
+                    # Если нет - добавляем его в справочник Classes
+                    obj_class = ObjectClass.query.filter_by(class_name=class_name).first()
+                    if not obj_class:
+                        obj_class = ObjectClass(class_name=class_name)
+                        db.session.add(obj_class)
+                        db.session.commit()  # Коммитим для получения class_id
+
+                    # Создаем запись результата детекции
+                    # Примечание: width и height установлены в 0, так как твой scanner.py
+                    # возвращает только центральные координаты объекта (x_px, y_px).
+                    new_detection = Detection(
+                        image_id=new_image.image_id,
+                        class_id=obj_class.class_id,
+                        bbox_x=det.get('x_px', 0),
+                        bbox_y=det.get('y_px', 0),
+                        bbox_w=0,
+                        bbox_h=0,
+                        confidence=det.get('conf', 0)
+                    )
+                    db.session.add(new_detection)
+
+                # Сохраняем все детекции одним разом
+                db.session.commit()
+                # === КОНЕЦ ДОБАВЛЕНИЯ В БАЗУ ДАННЫХ ===
 
                 return jsonify({
                     'status': 'success',
@@ -101,6 +144,7 @@ def register_routes(app):
 
             except Exception as e:
                 print(f"Ошибка обработки: {e}")
+                db.session.rollback()  # В случае ошибки откатываем изменения в базе
                 return jsonify({'error': str(e)}), 500
 
     @app.route('/results/<filename>')
@@ -108,3 +152,41 @@ def register_routes(app):
         # ИСПРАВЛЕНИЕ ЗДЕСЬ: тоже убрали '..'
         dir_path = os.path.join(current_app.root_path, 'data', 'processed')
         return send_from_directory(dir_path, filename)
+
+    @app.route('/history')
+    def history():
+        # Запрашиваем все снимки из базы, сортируя по дате (от новых к старым)
+        images = Image.query.order_by(Image.upload_date.desc()).all()
+
+        # Словарь для хранения статистики по каждому снимку
+        stats = {}
+
+        for img in images:
+            class_counts = {}
+            conf_0_25 = 0
+            conf_25_50 = 0
+            conf_50_100 = 0
+
+            for det in img.detections:
+                # Подсчет по классам
+                c_name = det.object_class.class_name
+                class_counts[c_name] = class_counts.get(c_name, 0) + 1
+
+                # Подсчет по уровню уверенности (confidence)
+                if det.confidence <= 0.25:
+                    conf_0_25 += 1
+                elif det.confidence <= 0.50:
+                    conf_25_50 += 1
+                else:
+                    conf_50_100 += 1
+
+            # Сохраняем собранные данные по ID снимка
+            stats[img.image_id] = {
+                'classes': class_counts,
+                'conf_0_25': conf_0_25,
+                'conf_25_50': conf_25_50,
+                'conf_50_100': conf_50_100
+            }
+
+        # Передаем и снимки, и словарь со статистикой в шаблон
+        return render_template('history.html', images=images, stats=stats)

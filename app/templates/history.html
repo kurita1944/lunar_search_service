@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>История анализов - Lunar Search Service</title>
+
+    <script>
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
+
+    <style>
+        @font-face {
+            font-family: 'Nasalization';
+            src: url('/static/fonts/nasalization-rg.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        /* ТЕМНАЯ ТЕМА (ПО УМОЛЧАНИЮ) */
+        :root {
+            --bg-main: #0f111a;
+            --bg-panel: #1a1d2d;
+            --bg-panel-hover: #23273b;
+            --accent: #3b82f6;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --border: #334155;
+            --table-header-bg: #23273b;
+        }
+
+        /* СВЕТЛАЯ ТЕМА */
+        [data-theme="light"] {
+            --bg-main: #f8f9fa;
+            --bg-panel: #ffffff;
+            --bg-panel-hover: #f1f3f5;
+            --accent: #007bff;
+            --text-main: #333333;
+            --text-muted: #6c757d;
+            --border: #dee2e6;
+            --table-header-bg: #e9ecef;
+        }
+
+        body {
+            font-family: 'Nasalization', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 40px;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .header-actions {
+            max-width: 1200px;
+            margin: 0 auto 20px auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: var(--bg-panel);
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border: 1px solid var(--border);
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+
+        h1 {
+            border-bottom: 2px solid var(--accent);
+            padding-bottom: 10px;
+            color: var(--accent);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 12px;
+            text-align: left;
+            vertical-align: top;
+            transition: border-color 0.3s ease;
+        }
+
+        th {
+            background-color: var(--table-header-bg);
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+
+        tr:hover {
+            background-color: var(--bg-panel-hover);
+        }
+
+        .back-link {
+            display: inline-block;
+            text-decoration: none;
+            color: #fff;
+            background-color: var(--text-muted);
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+
+        .back-link:hover {
+            background-color: var(--border);
+        }
+
+        .theme-toggle {
+            background: transparent;
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            padding: 9px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Nasalization', sans-serif;
+            font-size: 14px;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .theme-toggle:hover {
+            background: var(--bg-panel-hover);
+            border-color: var(--accent);
+        }
+
+        .stats-list {
+            margin: 0;
+            padding: 0;
+            list-style-type: none;
+            font-size: 0.9em;
+        }
+
+        .stats-list li {
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dashed var(--border);
+            padding-bottom: 2px;
+            transition: border-color 0.3s ease;
+        }
+
+        .stats-list li:last-child {
+            border-bottom: none;
+        }
+
+        .badge {
+            background-color: var(--accent);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="header-actions">
+        <a href="/" class="back-link">← Назад к сканеру</a>
+        <button class="theme-toggle" onclick="toggleTheme()" id="themeToggleBtn">☀️ Светлая тема</button>
+    </div>
+
+    <div class="container">
+        <h1>История проанализированных снимков</h1>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Имя файла</th>
+                    <th>Дата загрузки</th>
+                    <th>Всего объектов</th>
+                    <th>Распределение по классам</th>
+                    <th>Уверенность нейросети (Confidence)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for img in images %}
+                <tr>
+                    <td>{{ img.image_id }}</td>
+                    <td>{{ img.filename }}</td>
+                    <td>{{ img.upload_date.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td><strong>{{ img.detections|length }}</strong></td>
+
+                    <td>
+                        <ul class="stats-list">
+                            {% for c_name, count in stats[img.image_id].classes.items() %}
+                                <li><span>{{ c_name }}</span> <span class="badge">{{ count }}</span></li>
+                            {% endfor %}
+                            {% if not stats[img.image_id].classes %}
+                                <li>Объекты не найдены</li>
+                            {% endif %}
+                        </ul>
+                    </td>
+
+                    <td>
+                        <ul class="stats-list">
+                            <li><span>От 0.00 до 0.25:</span> <span class="badge" style="background-color: #6c757d;">{{ stats[img.image_id].conf_0_25 }}</span></li>
+                            <li><span>От 0.25 до 0.50:</span> <span class="badge" style="background-color: #17a2b8;">{{ stats[img.image_id].conf_25_50 }}</span></li>
+                            <li><span>От 0.50 до 1.00:</span> <span class="badge" style="background-color: #28a745;">{{ stats[img.image_id].conf_50_100 }}</span></li>
+                        </ul>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" style="text-align: center;">История пока пуста. Загрузите первый снимок!</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // --- ЛОГИКА ТЕМЫ ---
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeButton(newTheme);
+        }
+
+        function updateThemeButton(theme) {
+            const btn = document.getElementById('themeToggleBtn');
+            if (btn) {
+                btn.innerHTML = theme === 'dark' ? '☀️ Светлая тема' : '🌙 Темная тема';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+            updateThemeButton(currentTheme);
+        });
+        // --------------------
+    </script>
+</body>
+</html>
