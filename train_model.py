@@ -62,13 +62,13 @@ if __name__ == '__main__':
     # Обрати внимание: я уменьшил workers до 2 на всякий случай, чтобы не перегрузить CPU на старте.
     # Если все ок, можно вернуть 4.
     model.train(
-        data=r'D:/diplome/Lunar_Search_Service.v2-lunar_objects_dataset_v2.yolov8/data.yaml',
+        data=r'D:/diplome/Lunar_Search_Service.v2i.yolov8/data.yaml',
         epochs=100,
         imgsz=640,
         device=0,
         batch=16,
         name='lunar_model_m',
-        workers=2
+        workers=0
     )
 
     print("Обучение завершено!")
