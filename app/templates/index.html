@@ -30,6 +30,8 @@
             --border: #334155;
             --danger: #ef4444;
             --table-header-bg: #1a1d2d;
+            --success: #10b981; /* Зеленый для кнопок экспорта */
+            --success-hover: #059669;
         }
 
         /* СВЕТЛАЯ ТЕМА */
@@ -44,6 +46,8 @@
             --border: #dee2e6;
             --danger: #ef4444;
             --table-header-bg: #e9ecef;
+            --success: #28a745;
+            --success-hover: #218838;
         }
 
         body {
@@ -137,7 +141,73 @@
         .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
         .btn-outline:hover { background: var(--bg-panel-hover); border-color: var(--accent); }
 
-        /* Стили для кнопки переключения темы */
+        /* --- АНИМИРОВАННЫЙ ПЕРЕКЛЮЧАТЕЛЬ ТЕМЫ --- */
+        .theme-switch-wrapper {
+            display: flex;
+            align-items: center;
+        }
+        .theme-switch {
+            display: inline-block;
+            height: 34px;
+            position: relative;
+            width: 66px;
+        }
+        .theme-switch input {
+            display: none;
+        }
+        .slider-toggle {
+            background-color: var(--border);
+            bottom: 0;
+            cursor: pointer;
+            left: 0;
+            position: absolute;
+            right: 0;
+            top: 0;
+            transition: .4s;
+            border-radius: 34px;
+            border: 1px solid var(--border);
+        }
+        .slider-toggle:before {
+            background-color: #fff;
+            bottom: 3px;
+            content: "";
+            height: 26px;
+            left: 4px;
+            position: absolute;
+            transition: .4s;
+            width: 26px;
+            border-radius: 50%;
+            z-index: 2;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        input:checked + .slider-toggle {
+            background-color: var(--bg-panel-hover);
+            border-color: var(--accent);
+        }
+        input:checked + .slider-toggle:before {
+            transform: translateX(30px);
+            background-color: var(--accent);
+            box-shadow: 0 0 10px var(--accent); /* Эффект свечения для "луны" */
+        }
+        .slider-icons {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+            padding: 0 8px;
+            box-sizing: border-box;
+            position: absolute;
+            top: 0;
+            left: 0;
+            font-size: 16px;
+            z-index: 1;
+        }
+
+        /* Стили для кнопок экспорта */
+        .btn-success { background: var(--success); color: white; border: none; }
+        .btn-success:hover { background: var(--success-hover); }
+
         .theme-toggle {
             background: transparent;
             color: var(--text-main);
@@ -233,22 +303,91 @@
         tr:hover { background: var(--bg-panel-hover); }
 
         .class-badge { background: var(--border); padding: 3px 8px; border-radius: 4px; font-weight: 500; font-size: 12px;}
+
+        .coord-inputs {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            width: 100%;
+        }
+        .coord-input {
+            flex: 1;
+            background: var(--bg-main);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 13px;
+        }
+        .coord-input::placeholder { color: var(--text-muted); }
+        .coord-input:focus { outline: none; border-color: var(--accent); }
+
+        .checkbox-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid var(--border);
+        }
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            color: var(--text-main);
+            user-select: none;
+        }
+        .checkbox-label input {
+            accent-color: var(--accent);
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+        }
+
+        .export-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .export-group .btn { flex: 1; text-align: center; }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="header">
         <h1>Lunar Search <span>Service</span></h1>
         <div class="header-actions">
-            <button class="theme-toggle" onclick="toggleTheme()" id="themeToggleBtn">☀️ Светлая тема</button>
+            <div class="theme-switch-wrapper">
+                <label class="theme-switch" for="themeCheckbox">
+                    <input type="checkbox" id="themeCheckbox" onchange="toggleTheme()">
+                    <div class="slider-toggle">
+                        <div class="slider-icons">
+                            <span>🌙</span>
+                            <span>☀️</span>
+                        </div>
+                    </div>
+                </label>
+            </div>
+
             <a href="/history" class="btn btn-outline">История анализов</a>
         </div>
     </div>
 
     <div class="container">
         <div class="controls">
-            <div class="controls-left">
-                <input type="file" id="fileInput" accept=".tif,.tiff">
-                <button class="btn" onclick="uploadFile()">Запустить сканирование</button>
+            <div class="controls-left" style="flex-direction: column; align-items: flex-start; width: 60%;">
+                <div style="display: flex; gap: 15px; width: 100%;">
+                    <input type="file" id="fileInput" accept=".tif,.tiff">
+                    <button class="btn" onclick="uploadFile()">Запустить сканирование</button>
+                </div>
+                <div class="coord-inputs">
+                    <input type="number" id="lat_tl" class="coord-input" placeholder="Сев. широта (Center Lat)" step="any">
+                    <input type="number" id="lon_tl" class="coord-input" placeholder="Зап. долгота (Center Lon)" step="any">
+                    <input type="number" id="lat_br" class="coord-input" placeholder="Юж. широта" step="any">
+                    <input type="number" id="lon_br" class="coord-input" placeholder="Вост. долгота" step="any">
+                </div>
             </div>
             <div class="controls-right">
                 <span id="status">Система готова. Загрузите снимок LRO NAC.</span>
@@ -268,7 +407,35 @@
                     <h4 class="panel-title">Параметры фильтрации</h4>
                     <label>Порог уверенности (Confidence): <span id="confValue" style="color:var(--accent); font-weight:bold;">0.25</span></label>
                     <input type="range" id="confSlider" min="0.10" max="0.95" step="0.05" value="0.25" oninput="applyFilters()">
+
                     <button class="btn btn-outline" style="width: 100%; margin-top: 20px;" onclick="downloadAnnotatedImage()">Скачать снимок с разметкой</button>
+
+                    <div class="export-group">
+                        <button class="btn btn-success" onclick="exportCSV()">Экспорт CSV</button>
+                        <button class="btn btn-success" onclick="exportGeoJSON()">Экспорт GeoJSON</button>
+                    </div>
+
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="chk-landers" checked onchange="applyFilters()">
+                            Landers
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="chk-rovers" checked onchange="applyFilters()">
+                            Rovers
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="chk-craters" checked onchange="applyFilters()">
+                            Craters
+                        </label>
+                    </div>
+                </div>
+
+                <div class="panel" id="chartPanel" style="display: none; border-bottom: 1px solid var(--border);">
+                    <h4 class="panel-title">Соотношение объектов</h4>
+                    <div style="position: relative; height: 180px; width: 100%; display: flex; justify-content: center;">
+                        <canvas id="statsChart"></canvas>
+                    </div>
                 </div>
 
                 <div class="table-header">
@@ -295,41 +462,44 @@
     </div>
 
     <script>
+
         // --- ЛОГИКА ТЕМЫ ---
         function toggleTheme() {
             const currentTheme = document.documentElement.getAttribute('data-theme');
             const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
             document.documentElement.setAttribute('data-theme', newTheme);
             localStorage.setItem('theme', newTheme);
-            updateThemeButton(newTheme);
-        }
-
-        function updateThemeButton(theme) {
-            const btn = document.getElementById('themeToggleBtn');
-            if (btn) {
-                btn.innerHTML = theme === 'dark' ? '☀️ Светлая тема' : '🌙 Темная тема';
-            }
+            document.getElementById('themeCheckbox').checked = newTheme === 'dark';
         }
 
         document.addEventListener('DOMContentLoaded', () => {
             const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
-            updateThemeButton(currentTheme);
+            // Если тема темная, чекбокс должен быть включен (ползунок на луне)
+            document.getElementById('themeCheckbox').checked = currentTheme === 'dark';
         });
-        // --------------------
 
         let allDetections = [];
         let originalImgWidth = 0;
         let originalImgHeight = 0;
         let currentFilteredDetections = [];
+        let currentFileName = "unknown"; // Сохраняем имя файла для экспорта
+        let myChart = null; // Переменная для хранения нашего графика
 
         async function uploadFile() {
             const file = document.getElementById('fileInput').files[0];
             if (!file) return alert("Пожалуйста, выберите файл .TIF");
 
+            currentFileName = file.name;
+
             const formData = new FormData();
             formData.append('file', file);
             document.getElementById('status').innerText = 'Идет сканирование нейросетью...';
             document.getElementById('status').style.color = 'var(--text-main)';
+
+            formData.append('lat_tl', document.getElementById('lat_tl').value);
+            formData.append('lon_tl', document.getElementById('lon_tl').value);
+            formData.append('lat_br', document.getElementById('lat_br').value);
+            formData.append('lon_br', document.getElementById('lon_br').value);
 
             try {
                 const resp = await fetch('/upload', { method: 'POST', body: formData });
@@ -356,14 +526,29 @@
         function applyFilters() {
             if (allDetections.length === 0) return;
 
+            // 1. Читаем значение ползунка
             const minConf = parseFloat(document.getElementById('confSlider').value);
             document.getElementById('confValue').innerText = minConf.toFixed(2);
 
-            currentFilteredDetections = allDetections.filter(d => d.conf >= minConf);
+            // 2. Читаем состояние чекбоксов
+            const showLanders = document.getElementById('chk-landers').checked;
+            const showRovers = document.getElementById('chk-rovers').checked;
+            const showCraters = document.getElementById('chk-craters').checked;
 
+            // 3. Фильтруем массив: оставляем только то, что проходит по уверенности И по классу
+            currentFilteredDetections = allDetections.filter(d => {
+                if (d.conf < minConf) return false; // Не прошел по уверенности
+                if (d.class === 'Landers' && !showLanders) return false; // Скрыли Landers
+                if (d.class === 'Rovers' && !showRovers) return false;   // Скрыли Rovers
+                if (d.class === 'Craters' && !showCraters) return false; // Скрыли Craters
+                return true;
+            });
+
+            // 4. Обновляем все визуальные элементы
             renderTable(currentFilteredDetections);
             drawBoundingBoxes(currentFilteredDetections);
             document.getElementById('objCount').innerText = currentFilteredDetections.length;
+            updateChart(currentFilteredDetections);
         }
 
         function drawBoundingBoxes(data) {
@@ -406,12 +591,16 @@
             }
 
             data.forEach(det => {
-                const coordsString = `${det.x_px}, ${det.y_px}`;
+                // Если сервер вернул lat и lon, показываем градусы
+                const coordsString = det.lat !== undefined && det.lat !== null
+                    ? `${det.lat.toFixed(4)}, ${det.lon.toFixed(4)}`
+                    : `${det.x_px}px, ${det.y_px}px`;
+
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td><span class="class-badge">${det.class}</span></td>
-                    <td>${det.conf}</td>
-                    <td style="font-family: 'Courier New', monospace; color: var(--accent);">${coordsString}</td>
+                    <td>${det.conf.toFixed(2)}</td>
+                    <td style="font-family: 'Courier New', monospace; color: var(--accent); font-size: 12px;">${coordsString}</td>
                 `;
                 tbody.appendChild(row);
             });
@@ -460,6 +649,148 @@
             link.download = `lunar_scan_result_conf${confStr}.jpg`;
             link.href = canvas.toDataURL('image/jpeg', 0.9);
             link.click();
+        }
+
+        function updateChart(data) {
+            const chartPanel = document.getElementById('chartPanel');
+
+            // Если данных нет, прячем график
+            if (data.length === 0) {
+                chartPanel.style.display = 'none';
+                return;
+            }
+
+            chartPanel.style.display = 'block';
+
+            // Подсчитываем количество объектов каждого класса
+            const counts = {};
+            data.forEach(d => {
+                counts[d.class] = (counts[d.class] || 0) + 1;
+            });
+
+            const labels = Object.keys(counts);
+            const values = Object.values(counts);
+
+            // Задаем красивые цвета для наших классов
+            const backgroundColors = labels.map(label => {
+                if (label === 'Landers') return '#3b82f6'; // Синий
+                if (label === 'Rovers') return '#10b981';  // Зеленый
+                if (label === 'Craters') return '#ef4444'; // Красный
+                return '#94a3b8'; // Серый для неизвестных
+            });
+
+            const ctx = document.getElementById('statsChart').getContext('2d');
+
+            // Уничтожаем старый график перед отрисовкой нового (чтобы не наслаивались)
+            if (myChart) {
+                myChart.destroy();
+            }
+
+            // Рисуем кольцевую диаграмму (doughnut)
+            myChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: backgroundColors,
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: { color: document.documentElement.getAttribute('data-theme') === 'light' ? '#333' : '#e2e8f0' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- НОВЫЕ ФУНКЦИИ ЭКСПОРТА ДАННЫХ ---
+
+        function downloadFile(content, fileName, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        function exportCSV() {
+            if (currentFilteredDetections.length === 0) {
+                alert("Нет данных для экспорта. Пожалуйста, просканируйте снимок.");
+                return;
+            }
+
+            // Добавляем маркер BOM (\uFEFF), чтобы Excel сразу распознал кодировку UTF-8
+            let csvContent = "\uFEFF";
+
+            // Заголовки CSV разделяем точкой с запятой
+            csvContent += "Class;Confidence;Pixel_X;Pixel_Y;Latitude;Longitude\n";
+
+            // Данные
+            currentFilteredDetections.forEach(det => {
+                const lat = det.lat !== null && det.lat !== undefined ? det.lat : "";
+                const lon = det.lon !== null && det.lon !== undefined ? det.lon : "";
+
+                // Чтобы Excel воспринимал дроби как числа, можно заменить точку на запятую в Confidence
+                // (раскомментируй следующую строку, если Excel не понимает дроби с точкой)
+                // const confStr = det.conf.toString().replace('.', ',');
+                const confStr = det.conf;
+
+                // Собираем строку, используя точку с запятой
+                csvContent += `${det.class};${confStr};${det.x_px};${det.y_px};${lat};${lon}\n`;
+            });
+
+            const safeFileName = currentFileName.split('.')[0] + "_results.csv";
+            downloadFile(csvContent, safeFileName, 'text/csv;charset=utf-8;');
+        }
+
+        function exportGeoJSON() {
+            if (currentFilteredDetections.length === 0) {
+                alert("Нет данных для экспорта.");
+                return;
+            }
+
+            // Проверяем, есть ли хотя бы у одного объекта лунные координаты
+            const hasGeoData = currentFilteredDetections.some(d => d.lat !== null && d.lon !== null && d.lat !== undefined);
+
+            if (!hasGeoData) {
+                alert("GeoJSON требует реальных координат (Широта/Долгота). Вы не ввели координаты снимка перед сканированием.");
+                return;
+            }
+
+            // Формируем структуру GeoJSON
+            const geoJson = {
+                "type": "FeatureCollection",
+                "features": currentFilteredDetections
+                    .filter(det => det.lat !== null && det.lon !== null && det.lat !== undefined) // Берем только те, где есть гео-привязка
+                    .map(det => ({
+                        "type": "Feature",
+                        "geometry": {
+                            "type": "Point",
+                            "coordinates": [det.lon, det.lat] // В GeoJSON порядок строго Долгота, Широта
+                        },
+                        "properties": {
+                            "class": det.class,
+                            "confidence": det.conf,
+                            "image_source": currentFileName
+                        }
+                    }))
+            };
+
+            const safeFileName = currentFileName.split('.')[0] + "_spatial.geojson";
+            // Форматируем JSON красиво с отступами (2 пробела)
+            downloadFile(JSON.stringify(geoJson, null, 2), safeFileName, 'application/geo+json;charset=utf-8;');
         }
     </script>
 </body>

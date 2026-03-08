@@ -40,3 +40,7 @@ class Detection(db.Model):
     bbox_w = db.Column(db.Float, nullable=False)
     bbox_h = db.Column(db.Float, nullable=False)
     confidence = db.Column(db.Float, nullable=False)
+
+    # НОВЫЕ ПОЛЯ ДЛЯ РЕАЛЬНЫХ КООРДИНАТ
+    lat = db.Column(db.Float, nullable=True)  # Широта
+    lon = db.Column(db.Float, nullable=True)  # Долгота

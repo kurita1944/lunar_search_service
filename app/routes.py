@@ -39,11 +39,17 @@ def register_routes(app):
         if file.filename == '':
             return jsonify({'error': 'Файл не выбран'}), 400
 
+        # Читаем координаты, если пользователь их ввел
+        lat_tl = request.form.get('lat_tl', type=float)
+        lon_tl = request.form.get('lon_tl', type=float)
+        lat_br = request.form.get('lat_br', type=float)
+        lon_br = request.form.get('lon_br', type=float)
+
+        # Проверяем, все ли 4 координаты введены
+        has_coords = None not in (lat_tl, lon_tl, lat_br, lon_br)
+
         if file:
             filename = secure_filename(file.filename)
-
-            # ИСПРАВЛЕНИЕ ЗДЕСЬ: тоже убрали '..'
-            # Пути к папкам загрузки и обработки
             upload_folder = os.path.join(current_app.root_path, 'data', 'uploads')
             processed_folder = os.path.join(current_app.root_path, 'data', 'processed')
 
@@ -53,12 +59,9 @@ def register_routes(app):
             filepath = os.path.join(upload_folder, filename)
             file.save(filepath)
 
-            # --- ЗАПУСК НЕЙРОСЕТИ ---
             try:
-                # 1. Сканируем (порог по умолчанию 0.25 из scanner.py)
                 detections = scanner.scan_image(filepath)
 
-                # 2. Генерируем чистое превью для браузера
                 import rasterio
                 import numpy as np
 
@@ -87,51 +90,51 @@ def register_routes(app):
                     else:
                         img_vis = cv2.cvtColor(img_vis, cv2.COLOR_RGB2BGR)
 
-                    # Сохраняем чистую картинку
                     result_filename = f"res_{filename}.jpg"
                     result_path = os.path.join(processed_folder, result_filename)
                     cv2.imwrite(result_path, img_vis)
 
-                # === ДОБАВЛЕНИЕ В БАЗУ ДАННЫХ ===
-
-                # Шаг 1: Записываем информацию о загруженном снимке
-                new_image = Image(
-                    filename=filename,
-                    file_path=filepath,
-                    resolution=None  # Можно позже добавить чтение разрешения из метаданных (м/пикс)
-                )
+                # Записываем в базу
+                new_image = Image(filename=filename, file_path=filepath, resolution=None)
                 db.session.add(new_image)
-                db.session.commit()  # Коммитим, чтобы база присвоила снимку image_id
+                db.session.commit()
 
-                # Шаг 2: Проходимся по всем найденным объектам и сохраняем их
                 for det in detections:
                     class_name = det.get('class')
+                    x_px = det.get('x_px', 0)
+                    y_px = det.get('y_px', 0)
 
-                    # Проверяем, существует ли такой класс объектов в базе (АМС, Кратер и т.д.)
-                    # Если нет - добавляем его в справочник Classes
+                    # Расчет реальных лунных координат
+                    lat, lon = None, None
+                    if has_coords and orig_width > 0 and orig_height > 0:
+                        # Интерполяция широты (по оси Y) и долготы (по оси X)
+                        lat = lat_tl + (y_px / orig_height) * (lat_br - lat_tl)
+                        lon = lon_tl + (x_px / orig_width) * (lon_br - lon_tl)
+
+                        # Сохраняем в словарь для отправки на фронтенд
+                        det['lat'] = round(lat, 6)
+                        det['lon'] = round(lon, 6)
+
                     obj_class = ObjectClass.query.filter_by(class_name=class_name).first()
                     if not obj_class:
                         obj_class = ObjectClass(class_name=class_name)
                         db.session.add(obj_class)
-                        db.session.commit()  # Коммитим для получения class_id
+                        db.session.commit()
 
-                    # Создаем запись результата детекции
-                    # Примечание: width и height установлены в 0, так как твой scanner.py
-                    # возвращает только центральные координаты объекта (x_px, y_px).
                     new_detection = Detection(
                         image_id=new_image.image_id,
                         class_id=obj_class.class_id,
-                        bbox_x=det.get('x_px', 0),
-                        bbox_y=det.get('y_px', 0),
+                        bbox_x=x_px,
+                        bbox_y=y_px,
                         bbox_w=0,
                         bbox_h=0,
-                        confidence=det.get('conf', 0)
+                        confidence=det.get('conf', 0),
+                        lat=lat,  # Сохраняем реальную широту
+                        lon=lon  # Сохраняем реальную долготу
                     )
                     db.session.add(new_detection)
 
-                # Сохраняем все детекции одним разом
                 db.session.commit()
-                # === КОНЕЦ ДОБАВЛЕНИЯ В БАЗУ ДАННЫХ ===
 
                 return jsonify({
                     'status': 'success',
@@ -144,7 +147,7 @@ def register_routes(app):
 
             except Exception as e:
                 print(f"Ошибка обработки: {e}")
-                db.session.rollback()  # В случае ошибки откатываем изменения в базе
+                db.session.rollback()
                 return jsonify({'error': str(e)}), 500
 
     @app.route('/results/<filename>')
