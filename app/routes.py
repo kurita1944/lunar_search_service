@@ -1,6 +1,6 @@
 import os
 import cv2
-from flask import render_template, request, jsonify, current_app, send_from_directory
+from flask import render_template, request, jsonify, current_app, send_from_directory, redirect, url_for
 from werkzeug.utils import secure_filename
 from core.scanner import LunarScanner
 
@@ -193,3 +193,28 @@ def register_routes(app):
 
         # Передаем и снимки, и словарь со статистикой в шаблон
         return render_template('history.html', images=images, stats=stats)
+
+    @app.route('/delete/<int:image_id>', methods=['POST'])
+    def delete_record(image_id):
+        try:
+            # Находим запись о снимке в базе данных
+            image_to_delete = Image.query.get_or_404(image_id)
+
+            # Сначала удаляем все связанные детекции (чтобы не нарушить ссылочную целостность)
+            for det in image_to_delete.detections:
+                db.session.delete(det)
+
+            # Затем удаляем саму запись о снимке
+            db.session.delete(image_to_delete)
+            db.session.commit()
+
+            # При необходимости здесь можно добавить код для удаления физических файлов
+            # (оригинала и res_файла) с диска с помощью os.remove()
+
+            # Возвращаемся на страницу истории
+            return redirect(url_for('history'))
+
+        except Exception as e:
+            db.session.rollback()
+            print(f"Ошибка при удалении записи: {e}")
+            return jsonify({'error': str(e)}), 500
